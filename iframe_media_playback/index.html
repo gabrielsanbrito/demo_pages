@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <link href="style.css" rel="stylesheet"/>
+    </head>
+    <body>
+        <h1>No autoplay permission policy</h1>
+        <iframe src="https://stevebeckermsft.github.io/repro_pages/media/autoplay.html" width="100%" height="600px"></iframe>
+        <h1>Autoplay permission policy: *</h1>
+        <iframe allow="autoplay *" src="https://stevebeckermsft.github.io/repro_pages/media/autoplay.html" width="100%" height="50%"></iframe>
+        <h1>Autoplay permission policy: none</h1>
+        <iframe allow="autoplay 'none'" src="https://stevebeckermsft.github.io/repro_pages/media/autoplay.html" width="100%" height="50%"></iframe>
+    </body>
+</html>
