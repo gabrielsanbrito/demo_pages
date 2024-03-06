@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Nested iframe muting</title>
+    </head>
+    <body>
+        <h1>Topmost page</h1>
+<!-- 
+        <iframe id="audio_iframe" src="iframe.html" allow="execution-while-not-rendered 'none'"></iframe>
+         -->
+         <iframe id="audio_iframe" src="https://mdn.github.io/webaudio-examples/audiocontext-states/"></iframe>
+        <div id="button_row">
+            <button id="hide_iframe_btn">Hide iframe</button>
+            <button id="show_iframe_btn">Show iframe</button>
+            <button id="remove_iframe_from_dom_btn">Remove iframe from DOM</button>
+            <button id="add_iframe_from_dom_btn">Add iframe to DOM</button>
+        </div>
+        <script src="iframe_audio.js"></script>
+    </body>
+</html>
+
