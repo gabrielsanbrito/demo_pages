@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      WebAudio Oscillator Iframe
+    </title>
+  </head>
+  <body>
+    <script>
+      window.addEventListener('message', (event) => {
+        if (event.data === 'resume') {
+          console.log('Iframe: resume AudioContext');
+          audioCtx.resume();
+        } else if (event.data === 'suspend') {
+          console.log('Iframe: suspend AudioContext');
+          audioCtx.suspend();
+        }
+      });
+
+      let audioCtx = new AudioContext();
+      audioCtx.addEventListener('statechange', () => {
+        console.log(`Iframe: state changed to ${audioCtx.state}`);
+        // if (audioCtx.state === 'running') {
+        //   document.getElementById('audiocontext-btn').innerHTML = 'suspend AudioContext'; 
+        // } else if (audioCtx.state === 'suspended') {
+        //   document.getElementById('audiocontext-btn').innerHTML = 'resume AudioContext'; 
+        // } else if (audioCtx.state === 'closed') {
+        //   document.getElementById('audiocontext-btn').innerHTML = 'AudioContext closed';
+        //   document.getElementById('audiocontext-btn').disabled = true;
+        // } else if (audioCtx.state === 'interrupted') {
+        //   document.getElementById('audiocontext-btn').innerHTML = 'resume AudioContext'; 
+        // }
+
+        // Send the state of the AudioContext to the parent window.
+        window.parent.postMessage(audioCtx.state, '*');
+      });
+
+      audioCtx.resume();
+      const oscillator = audioCtx.createOscillator();
+      oscillator.connect(audioCtx.destination);
+
+      oscillator.start();
+    </script>
+  </body>

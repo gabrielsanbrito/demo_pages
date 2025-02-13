@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      WebAudio Permission Policy Integration
+    </title>
+  </head>
+  <body>
+    <iframe id="audio-iframe" allow="autoplay *; media-playback-while-not-visible 'none'" src="iframe.html"></iframe>
+    <button id="iframe-visibility-btn">Hide iframe (display)</button>
+    <button id="audiocontext-btn">resume AudioContext</button>
+    <script>
+      let iframe = document.getElementById('audio-iframe');
+      let iframe_visibility_button = document.getElementById('iframe-visibility-btn');
+      let iframe_audiocontext_button = document.getElementById('audiocontext-btn');
+      
+      iframe_visibility_button.addEventListener('click', () => {
+        if (iframe.style.display === 'none') {
+          iframe.style.display = 'block';
+          iframe_visibility_button.innerHTML = 'Hide iframe (display)';
+        } else {
+          iframe.style.display = 'none';
+          iframe_visibility_button.innerHTML = 'Show iframe (display)';
+        }
+      });
+
+      iframe_audiocontext_button.addEventListener('click', () => {
+        if (iframe_audiocontext_button.innerHTML === 'resume AudioContext') {
+          iframe.contentWindow.postMessage('resume', '*');
+        } else if (iframe_audiocontext_button.innerHTML === 'suspend AudioContext') {
+          iframe.contentWindow.postMessage('suspend', '*');
+        }
+      });
+
+      window.addEventListener('message', (event) => {
+        if (event.data === 'running') {
+          iframe_audiocontext_button.innerHTML = 'suspend AudioContext';
+          console.log('Top: AudioContext is running');
+        } else if (event.data === 'suspended') {
+          iframe_audiocontext_button.innerHTML = 'resume AudioContext';
+          console.log('Top: AudioContext is suspended');
+        } else if (event.data === 'closed') {
+          iframe_audiocontext_button.innerHTML = 'AudioContext closed';
+          iframe_audiocontext_button.disabled = true;
+          console.log('Top: AudioContext is closed');
+        } else if (event.data === 'interrupted') {
+          iframe_audiocontext_button.innerHTML = 'resume AudioContext';
+          console.log('Top: AudioContext is interrupted');
+        }
+      });
+    </script>
+  </body>
+</html>
