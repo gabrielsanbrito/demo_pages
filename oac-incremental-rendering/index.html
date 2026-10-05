@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OfflineAudioContext Incremental Rendering Demo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #111827;
+      color: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px;
+    }
+
+    main {
+      width: min(100%, 960px);
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+    }
+
+    p {
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #1f2937;
+      color: #bfdbfe;
+    }
+
+    .card {
+      margin-top: 20px;
+      padding: 20px;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      background: #172033;
+      box-shadow: 0 12px 30px rgb(0 0 0 / 20%);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #1f2937;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      flex: none;
+      border-radius: 50%;
+      background: #f59e0b;
+    }
+
+    .status.supported .status-dot {
+      background: #22c55e;
+    }
+
+    .status.unsupported .status-dot {
+      background: #ef4444;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: #cbd5e1;
+      font-size: 0.9rem;
+    }
+
+    input,
+    select,
+    button {
+      min-height: 40px;
+      border: 1px solid #4b5563;
+      border-radius: 7px;
+      background: #111827;
+      color: #f9fafb;
+      font: inherit;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 8px 10px;
+    }
+
+    button {
+      padding: 8px 14px;
+      cursor: pointer;
+      background: #1d4ed8;
+      border-color: #2563eb;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #374151;
+      border-color: #4b5563;
+    }
+
+    button.danger {
+      background: #991b1b;
+      border-color: #dc2626;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .stat {
+      padding: 12px;
+      border-radius: 8px;
+      background: #111827;
+    }
+
+    .stat-name {
+      color: #94a3b8;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      margin-top: 5px;
+      font-size: 1.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    canvas {
+      width: 100%;
+      height: 180px;
+      margin-top: 14px;
+      border-radius: 8px;
+      background: #0b1020;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 14px;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th,
+    td {
+      padding: 9px;
+      border-bottom: 1px solid #374151;
+      text-align: right;
+    }
+
+    th:first-child,
+    td:first-child {
+      text-align: left;
+    }
+
+    pre {
+      max-height: 240px;
+      overflow: auto;
+      padding: 14px;
+      border-radius: 8px;
+      background: #0b1020;
+      color: #d1d5db;
+      white-space: pre-wrap;
+    }
+
+    .note {
+      margin-top: 10px;
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>OfflineAudioContext incremental rendering</h1>
+  <p>
+    Render a continuous oscillator in multiple <code>AudioBuffer</code>
+    chunks, inspect the returned sizes, and play or download the accumulated
+    result.
+  </p>
+
+  <div id="supportStatus" class="status">
+    <span class="status-dot"></span>
+    <span id="supportText">Checking browser support…</span>
+  </div>
+
+  <div class="card">
+    <h2>Configuration</h2>
+    <div class="grid">
+      <label>
+        Length mode
+        <select id="lengthMode">
+          <option value="finite">Finite</option>
+          <option value="indefinite">Indefinite</option>
+        </select>
+      </label>
+
+      <label id="durationLabel">
+        Finite duration (seconds)
+        <input id="duration" type="number" value="3" min="0.01" step="0.1">
+      </label>
+
+      <label>
+        Chunk size (frames)
+        <input id="chunkSize" type="number" value="4096" min="1" step="1">
+      </label>
+
+      <label>
+        Sample rate
+        <select id="sampleRate">
+          <option value="44100">44,100 Hz</option>
+          <option value="48000" selected>48,000 Hz</option>
+        </select>
+      </label>
+
+      <label>
+        Channels
+        <select id="channels">
+          <option value="1">Mono</option>
+          <option value="2" selected>Stereo</option>
+        </select>
+      </label>
+
+      <label>
+        Oscillator frequency
+        <input id="frequency" type="number" value="440" min="1" max="20000">
+      </label>
+
+      <label>
+        Oscillator type
+        <select id="oscillatorType">
+          <option value="sine">Sine</option>
+          <option value="square">Square</option>
+          <option value="sawtooth">Sawtooth</option>
+          <option value="triangle">Triangle</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="actions">
+      <button id="createButton">Create context</button>
+      <button id="renderNextButton" disabled>Render next chunk</button>
+      <button id="renderAllButton" disabled>Render all</button>
+      <button id="closeButton" class="danger" disabled>Close</button>
+    </div>
+
+    <p class="note">
+      Requested chunks may be rounded up to the render quantum. The final
+      finite chunk is trimmed to the exact remaining frame count.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Rendered output</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-name">Context state</div>
+        <div id="contextState" class="stat-value">not created</div>
+      </div>
+      <div class="stat">
+        <div class="stat-name">Current time</div>
+        <div id="currentTime" class="stat-value">0.000 s</div>
+      </div>
+      <div class="stat">
+        <div class="stat-name">Chunks</div>
+        <div id="chunkCount" class="stat-value">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-name">Accumulated frames</div>
+        <div id="totalFrames" class="stat-value">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-name">Accumulated duration</div>
+        <div id="totalDuration" class="stat-value">0.000 s</div>
+      </div>
+    </div>
+
+    <canvas id="waveform" width="900" height="180"></canvas>
+
+    <div class="actions">
+      <button id="playButton" class="secondary" disabled>Play accumulated audio</button>
+      <button id="downloadButton" class="secondary" disabled>Download WAV</button>
+      <button id="clearButton" class="secondary">Clear output</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Chunk</th>
+          <th>Frames</th>
+          <th>Start frame</th>
+          <th>End frame</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody id="chunkTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </div>
+</main>
+
+<script>
+  "use strict";
+
+  const elements = {
+    supportStatus: document.querySelector("#supportStatus"),
+    supportText: document.querySelector("#supportText"),
+    lengthMode: document.querySelector("#lengthMode"),
+    durationLabel: document.querySelector("#durationLabel"),
+    duration: document.querySelector("#duration"),
+    chunkSize: document.querySelector("#chunkSize"),
+    sampleRate: document.querySelector("#sampleRate"),
+    channels: document.querySelector("#channels"),
+    frequency: document.querySelector("#frequency"),
+    oscillatorType: document.querySelector("#oscillatorType"),
+    createButton: document.querySelector("#createButton"),
+    renderNextButton: document.querySelector("#renderNextButton"),
+    renderAllButton: document.querySelector("#renderAllButton"),
+    closeButton: document.querySelector("#closeButton"),
+    playButton: document.querySelector("#playButton"),
+    downloadButton: document.querySelector("#downloadButton"),
+    clearButton: document.querySelector("#clearButton"),
+    contextState: document.querySelector("#contextState"),
+    currentTime: document.querySelector("#currentTime"),
+    chunkCount: document.querySelector("#chunkCount"),
+    totalFrames: document.querySelector("#totalFrames"),
+    totalDuration: document.querySelector("#totalDuration"),
+    chunkTableBody: document.querySelector("#chunkTableBody"),
+    waveform: document.querySelector("#waveform"),
+    log: document.querySelector("#log"),
+  };
+
+  const state = {
+    context: null,
+    chunks: [],
+    busy: false,
+    playbackContext: null,
+  };
+
+  function log(message) {
+    const timestamp = new Date().toLocaleTimeString();
+    elements.log.textContent += `[${timestamp}] ${message}\n`;
+    elements.log.scrollTop = elements.log.scrollHeight;
+  }
+
+  function supportsIncrementalRendering() {
+    return typeof OfflineAudioContext !== "undefined";
+  }
+
+  function supportsClose() {
+    return typeof OfflineAudioContext !== "undefined" &&
+        typeof OfflineAudioContext.prototype.close === "function";
+  }
+
+  function setBusy(busy) {
+    state.busy = busy;
+    updateControls();
+  }
+
+  function updateControls() {
+    const contextExists = Boolean(state.context);
+    const isClosed = !contextExists || state.context.state === "closed";
+    const finite = elements.lengthMode.value === "finite";
+    const hasAudio = state.chunks.length > 0;
+
+    elements.createButton.disabled =
+        state.busy || !supportsIncrementalRendering() ||
+        (contextExists && !isClosed);
+    elements.renderNextButton.disabled = state.busy || !contextExists || isClosed;
+    elements.renderAllButton.disabled =
+        state.busy || !contextExists || isClosed || !finite;
+    elements.closeButton.disabled =
+        state.busy || !contextExists || isClosed || !supportsClose();
+    elements.playButton.disabled = state.busy || !hasAudio;
+    elements.downloadButton.disabled = state.busy || !hasAudio;
+    elements.clearButton.disabled = state.busy;
+    elements.durationLabel.hidden = !finite;
+  }
+
+  function updateStats() {
+    const totalFrames = state.chunks.reduce(
+        (sum, chunk) => sum + chunk.length, 0);
+    const sampleRate = state.context
+        ? state.context.sampleRate
+        : Number(elements.sampleRate.value);
+
+    elements.contextState.textContent =
+        state.context ? state.context.state : "not created";
+    elements.currentTime.textContent =
+        `${state.context ? state.context.currentTime.toFixed(3) : "0.000"} s`;
+    elements.chunkCount.textContent = String(state.chunks.length);
+    elements.totalFrames.textContent = totalFrames.toLocaleString();
+    elements.totalDuration.textContent =
+        `${(totalFrames / sampleRate).toFixed(3)} s`;
+
+    updateControls();
+    drawWaveform();
+  }
+
+  function clearOutput() {
+    state.chunks = [];
+    elements.chunkTableBody.textContent = "";
+    elements.log.textContent = "";
+    updateStats();
+  }
+
+  function createContext() {
+    clearOutput();
+
+    const sampleRate = Number(elements.sampleRate.value);
+    const numberOfChannels = Number(elements.channels.value);
+    const finite = elements.lengthMode.value === "finite";
+    const length = finite
+        ? Math.max(1, Math.round(Number(elements.duration.value) * sampleRate))
+        : null;
+
+    try {
+      const context = new OfflineAudioContext({
+        numberOfChannels,
+        length,
+        sampleRate,
+      });
+
+      const oscillator = new OscillatorNode(context, {
+        frequency: Number(elements.frequency.value),
+        type: elements.oscillatorType.value,
+      });
+      const gain = new GainNode(context, {gain: 0.2});
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start();
+
+      context.onstatechange = updateStats;
+      context.oncomplete = event => {
+        log(`complete event fired with ${event.renderedBuffer.length} frames`);
+        updateStats();
+      };
+
+      state.context = context;
+      log(
+          `Created ${finite ? `${length}-frame` : "indefinite"} context: ` +
+          `${numberOfChannels} channel(s), ${sampleRate} Hz`);
+      updateStats();
+    } catch (error) {
+      log(`Failed to create context: ${error.name}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async function renderNextChunk() {
+    if (!state.context || state.context.state === "closed") {
+      return false;
+    }
+
+    const requestedFrames = Number(elements.chunkSize.value);
+    setBusy(true);
+
+    try {
+      const startFrame = state.chunks.reduce(
+          (sum, chunk) => sum + chunk.length, 0);
+      const buffer = await state.context.startRendering(requestedFrames);
+      const endFrame = startFrame + buffer.length;
+      state.chunks.push(buffer);
+
+      const row = elements.chunkTableBody.insertRow();
+      row.insertCell().textContent = String(state.chunks.length);
+      row.insertCell().textContent = buffer.length.toLocaleString();
+      row.insertCell().textContent = startFrame.toLocaleString();
+      row.insertCell().textContent = endFrame.toLocaleString();
+      row.insertCell().textContent = `${buffer.duration.toFixed(4)} s`;
+
+      log(
+          `Chunk ${state.chunks.length}: requested ${requestedFrames}, ` +
+          `received ${buffer.length} frames; context=${state.context.state}`);
+      updateStats();
+      return true;
+    } catch (error) {
+      log(`Render failed: ${error.name}: ${error.message}`);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function renderAll() {
+    if (elements.lengthMode.value !== "finite") {
+      return;
+    }
+
+    while (state.context && state.context.state !== "closed") {
+      const rendered = await renderNextChunk();
+      if (!rendered) {
+        break;
+      }
+    }
+  }
+
+  async function closeContext() {
+    if (!state.context || state.context.state === "closed") {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await state.context.close();
+      log("Context closed explicitly");
+      updateStats();
+    } catch (error) {
+      log(`Close failed: ${error.name}: ${error.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function createCombinedBuffer(audioContext) {
+    const channels = state.chunks[0].numberOfChannels;
+    const sampleRate = state.chunks[0].sampleRate;
+    const totalFrames = state.chunks.reduce(
+        (sum, chunk) => sum + chunk.length, 0);
+    const output = audioContext.createBuffer(channels, totalFrames, sampleRate);
+
+    for (let channel = 0; channel < channels; channel++) {
+      const destination = output.getChannelData(channel);
+      let offset = 0;
+      for (const chunk of state.chunks) {
+        destination.set(chunk.getChannelData(channel), offset);
+        offset += chunk.length;
+      }
+    }
+
+    return output;
+  }
+
+  async function playAccumulatedAudio() {
+    if (!state.chunks.length) {
+      return;
+    }
+
+    state.playbackContext ||= new AudioContext();
+    await state.playbackContext.resume();
+    const source = state.playbackContext.createBufferSource();
+    source.buffer = createCombinedBuffer(state.playbackContext);
+    source.connect(state.playbackContext.destination);
+    source.start();
+    log(`Playing ${source.buffer.duration.toFixed(3)} seconds`);
+  }
+
+  function encodeWav() {
+    const channels = state.chunks[0].numberOfChannels;
+    const sampleRate = state.chunks[0].sampleRate;
+    const totalFrames = state.chunks.reduce(
+        (sum, chunk) => sum + chunk.length, 0);
+    const bytesPerSample = 2;
+    const blockAlign = channels * bytesPerSample;
+    const dataSize = totalFrames * blockAlign;
+    const arrayBuffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(arrayBuffer);
+
+    const writeString = (offset, value) => {
+      for (let i = 0; i < value.length; i++) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    const channelData = Array.from(
+        {length: channels},
+        (_, channel) => state.chunks.map(chunk => chunk.getChannelData(channel)));
+    let byteOffset = 44;
+    let chunkIndex = 0;
+    let frameInChunk = 0;
+
+    for (let frame = 0; frame < totalFrames; frame++) {
+      for (let channel = 0; channel < channels; channel++) {
+        const sample = Math.max(
+            -1, Math.min(1, channelData[channel][chunkIndex][frameInChunk]));
+        view.setInt16(
+            byteOffset,
+            sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+            true);
+        byteOffset += bytesPerSample;
+      }
+
+      frameInChunk++;
+      if (frameInChunk === state.chunks[chunkIndex].length) {
+        chunkIndex++;
+        frameInChunk = 0;
+      }
+    }
+
+    return new Blob([arrayBuffer], {type: "audio/wav"});
+  }
+
+  function downloadWav() {
+    if (!state.chunks.length) {
+      return;
+    }
+
+    const url = URL.createObjectURL(encodeWav());
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "incremental-rendering.wav";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    log("Downloaded accumulated audio as WAV");
+  }
+
+  function drawWaveform() {
+    const canvas = elements.waveform;
+    const context = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    context.clearRect(0, 0, width, height);
+
+    context.strokeStyle = "#334155";
+    context.beginPath();
+    context.moveTo(0, height / 2);
+    context.lineTo(width, height / 2);
+    context.stroke();
+
+    if (!state.chunks.length) {
+      return;
+    }
+
+    const totalFrames = state.chunks.reduce(
+        (sum, chunk) => sum + chunk.length, 0);
+    const samplesPerPixel = Math.max(1, Math.floor(totalFrames / width));
+    let globalFrame = 0;
+    let chunkIndex = 0;
+    let frameInChunk = 0;
+
+    context.strokeStyle = "#60a5fa";
+    context.beginPath();
+
+    for (let x = 0; x < width && globalFrame < totalFrames; x++) {
+      let min = 1;
+      let max = -1;
+
+      for (let i = 0; i < samplesPerPixel && globalFrame < totalFrames; i++) {
+        const sample =
+            state.chunks[chunkIndex].getChannelData(0)[frameInChunk];
+        min = Math.min(min, sample);
+        max = Math.max(max, sample);
+        globalFrame++;
+        frameInChunk++;
+
+        if (frameInChunk === state.chunks[chunkIndex].length) {
+          chunkIndex++;
+          frameInChunk = 0;
+        }
+      }
+
+      context.moveTo(x, (1 - max) * height / 2);
+      context.lineTo(x, (1 - min) * height / 2);
+    }
+
+    context.stroke();
+  }
+
+  elements.lengthMode.addEventListener("change", updateControls);
+  elements.createButton.addEventListener("click", createContext);
+  elements.renderNextButton.addEventListener("click", renderNextChunk);
+  elements.renderAllButton.addEventListener("click", renderAll);
+  elements.closeButton.addEventListener("click", closeContext);
+  elements.playButton.addEventListener("click", playAccumulatedAudio);
+  elements.downloadButton.addEventListener("click", downloadWav);
+  elements.clearButton.addEventListener("click", clearOutput);
+
+  const supported = supportsIncrementalRendering();
+  elements.supportStatus.classList.add(supported ? "supported" : "unsupported");
+  elements.supportText.textContent = supported
+      ? "Incremental rendering is available."
+      : "Incremental rendering is unavailable. Launch Chromium with " +
+        "--enable-blink-features=OfflineAudioContextIncrementalRendering.";
+
+  updateStats();
+</script>
+</body>
+</html>
